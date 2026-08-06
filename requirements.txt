@@ -1,0 +1,14 @@
+# Core machine learning framework
+tensorflow>=2.14.0
+
+# Keras is now included in TensorFlow, nhưng vẫn nên thêm rõ để tránh lỗi import
+keras>=2.14.0
+
+# Data processing
+pandas>=2.1.0
+numpy>=1.26.0
+
+# Optional but recommended
+matplotlib>=3.8.0     # nếu bạn muốn vẽ biểu đồ
+scikit-learn>=1.3.0   # để chia dataset / đánh giá mô hình
+jupyter>=1.0.0        # nếu bạn chạy notebook
