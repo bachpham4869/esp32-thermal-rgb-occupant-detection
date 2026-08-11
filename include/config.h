@@ -40,3 +40,34 @@
 // WiFi - ESP32 tu phat Access Point
 #define AP_SSID "YOLO_FUSION"
 #define AP_PASS "12345678"
+
+// ============================================================
+// Nguong cho module phat hien nguoi/tre em bi bo quen (detector.h)
+// Can hieu chinh thuc te tren xe that - day chi la gia tri khoi diem.
+// ============================================================
+#define DET_WARMUP_FRAMES      30      // so frame dau tien dung de hoc nen on dinh (khong detect)
+#define DET_BG_ALPHA           0.02f   // toc do cap nhat nen (EMA) o vung "giong nen"
+#define DET_FG_DIFF_THRESH_C   2.0f    // do lech nhiet (C) de coi 1 pixel la "khac nen"
+
+#define DET_MAX_TEMP_C         58.0f   // tran nhiet - vuot qua thi loai (ca phe nong, binh nuoc soi)
+#define DET_MIN_BLOB_PIXELS    15      // kich thuoc toi thieu (loai dien thoai, coc nuoc)
+#define DET_MIN_PERSON_PIXELS  60      // kich thuoc de coi la "nguoi ro rang"
+
+#define DET_ASPECT_MIN         0.35f   // ti le w/h duoi nguong nay -> hinh dang bat thuong
+#define DET_ASPECT_MAX         2.8f    // ti le w/h tren nguong nay -> hinh dang bat thuong
+
+#define DET_GRAY_HISTORY_LEN   8       // so frame luu de tinh phuong sai nhiet cua vung xam
+#define DET_GRAY_VAR_THRESH    0.03f   // phuong sai nhiet (C^2) toi thieu de coi la "co dao dong giong tho"
+
+#define DET_CONFIRM_N          5       // so frame co candidate can trong cua so M de CONFIRMED
+#define DET_CONFIRM_M          7       // do rong cua so debounce (frame)
+#define DET_RESET_EMPTY        10      // so frame lien tiep khong co candidate de quay ve IDLE
+
+// ============================================================
+// Buffer dac trung DAI HAN - phuc vu thu thap du lieu / phan biet
+// tay nguoi vs vat nong khac (ML). Lay mau tho, chu ky cham (~1s/mau)
+// khac voi _windowFrames (debounce, nhanh) va _tracked.history (gray-zone,
+// ngan). Muc dich: bat xu huong nhiet dai han + do "run/jitter" vi tri.
+// ============================================================
+#define DET_LT_HISTORY_LEN     64      // so mau dai han luu tru (vd 64 mau x 1s = ~64s)
+#define DET_LT_SAMPLE_MS       1000UL  // chu ky lay 1 mau dac trung dai han (ms)

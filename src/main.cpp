@@ -8,9 +8,48 @@
 #include "config.h"
 #include "mi48.h"
 #include "task_web.h"
+#include "Detector.h"
 
 MI48 thermal;
+OccupantDetector occupant;
 WebServer streamServer(81);   // Server rieng, chi phuc vu MJPEG stream
+
+// ============================================================
+// CHE DO THU THAP DU LIEU (ML) - bat bang bien DATA_COLLECTION_MODE.
+// Khi bat: moi ~1s, moi blob co feature dai han hop le se duoc in ra
+// Serial dang CSV kem nhan (label) hien tai. Nguoi van hanh doi nhan
+// bang cach go vao Serial Monitor: "L<so>" + Enter, vd L1, L2...
+// Quy uoc nhan (tu dinh nghia lai theo nhu cau, ghi lai vao so tay thu nghiem):
+//   0 = khong xac dinh/nen (khong log co y nghia, dung khi doi cam bien)
+//   1 = tay nguoi          4 = bang tap-lo/ghe bi nang chieu
+//   2 = coc/chai nuoc nong 5 = cua gio suoi/dieu hoa dang thoi nong
+//   3 = dien thoai/laptop  6 = hoi nuoc (vapor)
+// ============================================================
+#define DATA_COLLECTION_MODE   true
+volatile uint8_t g_currentLabel = 0;
+
+void handleSerialLabelCommands() {
+    static char buf[16];
+    static uint8_t len = 0;
+    while (Serial.available()) {
+        char c = Serial.read();
+        if (c == '\n' || c == '\r') {
+            if (len > 0) {
+                buf[len] = 0;
+                if ((buf[0] == 'L' || buf[0] == 'l') && len > 1) {
+                    int v = atoi(buf + 1);
+                    if (v >= 0 && v <= 255) {
+                        g_currentLabel = (uint8_t)v;
+                        Serial.printf("[Label] Da doi nhan hien tai -> %u\n", g_currentLabel);
+                    }
+                }
+                len = 0;
+            }
+        } else if (len < sizeof(buf) - 1) {
+            buf[len++] = c;
+        }
+    }
+}
 
 TaskHandle_t thermalTaskHandle = nullptr;
 TaskHandle_t streamTaskHandle  = nullptr;
@@ -97,8 +136,27 @@ void thermalTask(void *pvParameters) {
         Serial.println("[thermalTask] MI48 san sang.");
     }
 
+    bool loggedHeader = false;
     for (;;) {
-        thermal.poll();
+        if (DATA_COLLECTION_MODE) handleSerialLabelCommands();
+
+        if (thermal.poll()) {
+            // Co frame moi -> chay pipeline phat hien nguoi ngay tren du lieu tho,
+            // cung task/core voi MI48 nen khong can lock rieng cho buoc nay.
+            // ambientTempC chi hop le khi header duoc bat (USE_FRAME_HEADER=true).
+            float ambientTempC = thermal.headerEnabled() ? thermal.senxorTempC() : NAN;
+            occupant.update(thermal.pixels(), ambientTempC);
+
+            if (DATA_COLLECTION_MODE) {
+                if (!loggedHeader) {
+                    Serial.println("label,blobType,pixelCount,aspect,solidity,deltaAmbT,trendSlope,residStd,cxJitter,areaJitter,maxTemp,tempSpread,sampleCount");
+                    loggedHeader = true;
+                }
+                if (occupant.newFeatureSample()) {
+                    occupant.printFeaturesCSV(g_currentLabel);
+                }
+            }
+        }
         vTaskDelay(1);
     }
 }
@@ -122,6 +180,8 @@ void setup() {
         while (true) delay(1000);
     }
     Serial.println("Camera OV3660 san sang.");
+
+    occupant.begin();
 
     setupWiFi();
     web_init();   // khoi tao ca server (80) va streamServer (81)
