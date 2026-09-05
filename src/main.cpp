@@ -25,8 +25,8 @@ WebServer streamServer(81);   // Server rieng, chi phuc vu MJPEG stream
 //   2 = coc/chai nuoc nong 5 = cua gio suoi/dieu hoa dang thoi nong
 //   3 = dien thoai/laptop  6 = hoi nuoc (vapor)
 // ============================================================
-#define DATA_COLLECTION_MODE   true
-volatile uint8_t g_currentLabel = 0;
+#define DATA_COLLECTION_MODE   false
+volatile uint8_t g_currentLabel = 0; 
 
 void handleSerialLabelCommands() {
     static char buf[16];

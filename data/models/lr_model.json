@@ -1,0 +1,26 @@
+{
+  "feature_order": [
+    "aspect",
+    "solidity",
+    "deltaAmbT",
+    "trendSlope",
+    "residStd",
+    "cxJitter",
+    "areaJitter",
+    "maxTemp",
+    "tempSpread"
+  ],
+  "weights": [
+    -0.18111725196601158,
+    -1.8808937177495393,
+    -0.29817679330407837,
+    -0.02970820263749546,
+    4.123442138076562,
+    -0.7632543719574323,
+    -0.008874941743814079,
+    -0.687373605262233,
+    0.39215241016831914
+  ],
+  "bias": 27.835894068998538,
+  "formula": "z = dot(weights, features) + bias; p_human = sigmoid(z)"
+}

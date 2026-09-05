@@ -72,11 +72,16 @@ struct DetectionResult {
     bool          warmingUp;
     uint16_t      fgPixelCount;        // tong so pixel vuot nguong nen (truoc khi gom blob) - de debug
     bool          newLtSample;         // NEW: true neu frame nay vua lay mau dai han moi (dung de quyet dinh khi nao log CSV)
+    float         lrProb[DET_MAX_BLOBS];
 };
 
 class OccupantDetector {
 public:
     OccupantDetector();
+    // Tra ve xac suat [0..1] la nguoi that, dua tren BlobFeatures da tinh.
+    // Chi goi khi features.valid == true (>=5 mau dai han).
+   
+
     void begin();
 
     // Goi tu thermalTask moi khi co frame moi.
@@ -184,7 +189,7 @@ private:
     // Tinh BlobFeatures tu buffer dai han cua track 'idx'. Tra ve false (features.valid=false)
     // neu chua co it nhat 5 mau.
     bool  computeFeatures(int idx, DetBlob &b, float ambientTempC, BlobFeatures &out);
-
+     float lrPredictHuman(const BlobFeatures &f) const;
     // TODO (chua lam): xac nhan bang RGB khi du sang (theo so do pipeline).
     // Ly do bo qua: can mot detector hinh nguoi tren anh RGB (kieu YOLO/HOG) de khop
     // vi tri blob nhiet voi vung "giong nguoi" trong anh - khong kha thi chay realtime

@@ -2,7 +2,40 @@
 #include "Detector.h"
 #include <math.h>
 #include <string.h>
+#define LR_NUM_FEATURES 9
 
+// Sinh tu dong boi tools/train_classifier.py - KHONG sua tay so,
+// chay lai script va dan lai neu doi/them data.
+static const float LR_WEIGHTS[LR_NUM_FEATURES] = {
+    /* dan 9 dong weight script in ra vao day */
+    -0.18111725f,  // aspect
+    -1.88089372f,  // solidity
+    -0.29817679f,  // deltaAmbT
+    -0.02970820f,  // trendSlope
+    4.12344214f,  // residStd
+    -0.76325437f,  // cxJitter
+    -0.00887494f,  // areaJitter
+    -0.68737361f,  // maxTemp
+    0.39215241f,  // tempSpread
+};
+static const float LR_BIAS = 27.83589407f;
+static const float LR_THRESHOLD = 0.5f;
+static inline float sigmoidf(float z) {
+    return 1.0f / (1.0f + expf(-z));
+}
+
+float OccupantDetector::lrPredictHuman(const BlobFeatures &f) const {
+    // THU TU PHAI KHOP FEATURE_COLS trong train_classifier.py:
+    // aspect, solidity, deltaAmbT, trendSlope, residStd, cxJitter, areaJitter, maxTemp, tempSpread
+    const float x[LR_NUM_FEATURES] = {
+        f.aspectRatio, f.solidity, f.deltaAmbientT, f.tempTrendSlope,
+        f.tempResidualStd, f.centroidJitterStd, f.areaJitterStd,
+        f.maxTempC, f.tempSpread
+    };
+    float z = LR_BIAS;
+    for (int i = 0; i < LR_NUM_FEATURES; i++) z += LR_WEIGHTS[i] * x[i];
+    return sigmoidf(z);
+}
 OccupantDetector::OccupantDetector() {}
 
 void OccupantDetector::begin() {
@@ -445,6 +478,8 @@ void OccupantDetector::update(const uint16_t* rawPixels, float ambientTempC) {
     uint32_t nowMs = millis();
     bool anyLtSample = false;
     BlobFeatures featuresOut[DET_MAX_BLOBS];
+    float lrProbOut[DET_MAX_BLOBS];
+    for (int i = 0; i < DET_MAX_BLOBS; i++) lrProbOut[i] = -1.0f;
 
     bool hasCandidate = false;
     for (int i = 0; i < n; i++) {
@@ -455,29 +490,40 @@ void OccupantDetector::update(const uint16_t* rawPixels, float ambientTempC) {
             blobs[i].type = (var >= DET_GRAY_VAR_THRESH) ? BLOB_CANDIDATE : BLOB_REJECTED;
         }
 
-        // NOTE (TODO): buoc xac nhan RGB khi du sang trong so do pipeline chua duoc
-        // implement o day - xem ghi chu trong detector.h. Hien dung thang ket qua nhiet.
-
-        if (blobs[i].type == BLOB_PERSON || blobs[i].type == BLOB_CANDIDATE) {
-            hasCandidate = true;
-        }
-
-        // --- NEW: track + lay mau dai han + tinh feature cho MOI blob co kich thuoc
+        // --- track + lay mau dai han + tinh feature cho MOI blob co kich thuoc
         // toi thieu (ke ca blob bi REJECTED/LOW_SUSPECT) - can log CA lop am (cup nong,
         // dien thoai...) de train classifier, khong chi log lop duong (nguoi).
         if (blobs[i].pixelCount >= DET_MIN_BLOB_PIXELS) {
             int idx = findOrAssignTrack(blobs[i]);
             if (idx >= 0) {
                 sampleLongTerm(idx, blobs[i], nowMs);
-                if (computeFeatures(idx, blobs[i], ambientTempC, featuresOut[i])) anyLtSample = true;
+                if (computeFeatures(idx, blobs[i], ambientTempC, featuresOut[i])) {
+                    anyLtSample = true;
+                    float pHuman = lrPredictHuman(featuresOut[i]);
+                    lrProbOut[i] = pHuman;   // NEW: luu lai de web doc, ke ca blob bi reject
+
+                    if (blobs[i].type == BLOB_PERSON || blobs[i].type == BLOB_CANDIDATE) {
+                        if (pHuman < LR_THRESHOLD) {
+                            blobs[i].type = BLOB_REJECTED;
+                        }
+                    }
+                }
             } else {
                 memset(&featuresOut[i], 0, sizeof(BlobFeatures));
             }
         } else {
             memset(&featuresOut[i], 0, sizeof(BlobFeatures));
         }
-    }
 
+        // NOTE (TODO): buoc xac nhan RGB khi du sang trong so do pipeline chua duoc
+        // implement o day - xem ghi chu trong detector.h. Hien dung thang ket qua nhiet.
+
+        // Xet hasCandidate SAU CUNG, vi LR gate o tren co the vua ha cap type -
+        // phai dung type moi nhat, khong dung type truoc khi loc.
+        if (blobs[i].type == BLOB_PERSON || blobs[i].type == BLOB_CANDIDATE) {
+            hasCandidate = true;
+        }
+    }
     for (int i = 0; i < DET_MAX_BLOBS; i++) {
         if (_tracked[i].active) {
             _tracked[i].missedFrames++;
@@ -491,6 +537,7 @@ void OccupantDetector::update(const uint16_t* rawPixels, float ambientTempC) {
     for (int i = 0; i < n; i++) {
         _result.blobs[i] = blobs[i];
         _result.features[i] = featuresOut[i];
+        _result.lrProb[i] = lrProbOut[i]; 
     }
     _result.state = _state;
     _result.alert = (_state == STATE_ALERT);
